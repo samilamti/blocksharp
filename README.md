@@ -1,5 +1,7 @@
 # B# - Block Sharp
-> Inspired by the Boo programming language, Python Zen, F# and Glen Block's ScriptCS
+> Inspired by the Boo programming language, Python Zen, F# and Glenn Block's ScriptCS
+>
+> (See [Glenn in action here](https://www.youtube.com/watch?v=EEHnrA_SyJk "scriptcs, Adventures In Scripting"))
 
 Less typing, more action!
 
