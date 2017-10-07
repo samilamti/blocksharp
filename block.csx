@@ -3,9 +3,10 @@ using System.Diagnostics;
 using System.IO;
 using System;
 
-var sourceFile = Directory.EnumerateFiles(Path.GetDirectoryName(
-    Environment.CommandLine.Substring(Environment.CommandLine.IndexOf(Path.DirectorySeparatorChar))),
-    "*.bs").First();
+var sourceFile = Env.ScriptArgs[0];
+var targetFile = Env.ScriptArgs.Count() > 1 ? Env.ScriptArgs[1] : null;
+
+System.Console.WriteLine("Processing " + sourceFile);
 
 bool TryReduce(IEnumerable<Func<string, string>> enumerable, ref string line) {
     var reduction = enumerable.Aggregate(line, (modifiedLine, modifier) =>
@@ -15,9 +16,15 @@ bool TryReduce(IEnumerable<Func<string, string>> enumerable, ref string line) {
     return true;
 }
 
-Console.Clear();
+//Console.Clear();
 
 var lines = new List<string>(File.ReadAllLines(sourceFile));
+
+var processors = new Dictionary<string, Func<string, string>> {
+    { "using", s => $"using {s};" },
+    { "else", s => $"\\t{s};"}
+};
+Func<string, string> processor = null;
 
 var blocks = new List<Func<string, string>> {
     input => Regex.Replace(input, "(if|while|for|foreach) (.+)$", match => {
@@ -29,7 +36,16 @@ var blocks = new List<Func<string, string>> {
         return $"{op} ({expression}) {{";
     }),
     input => Regex.Replace(input, "else$", "else {"),
-    input => Regex.Replace(input, "throw (.+?)$", "throw new $1;")
+    input => Regex.Replace(input, "throw (.+?)$", "throw new $1;"),
+    input => Regex.Replace(input, "using", match => {
+        Console.WriteLine("W00p " + match.Value);
+        processor = processors["using"];
+        return String.Empty;
+    }),
+    input => Regex.Replace(input, "^\\s+(\\S+?)$", match => {
+        var val = match.Groups[1].Value;
+        return processor?.Invoke(val) ?? val;
+    })
 };
 
 var variables = new List<Func<string, string>> {
@@ -57,7 +73,6 @@ var strings = new List<Func<string, string>> {
 
 var pipeline = strings.Concat(modifications);
 
-bool inBlock = false;
 var scriptContent = lines
     .Select(line => {
 
@@ -67,29 +82,23 @@ var scriptContent = lines
                     line, (modifiedInput, modifier) => modifier(modifiedInput)
                 );
             }
-        } else {
-            inBlock = true;
         }
 
-        if (line.StartsWith("else"))
-            return "}\n" + line;
-        if (line.Trim() == "" && inBlock) {
-            inBlock = false;
-            return "}\n";
-        }
         return line; 
-    });
+    })
+    .Where(line => !String.IsNullOrEmpty(line));
 
-var tempFile = Path.GetTempFileName();
+var tempFile = targetFile ?? Path.GetTempFileName();
 File.WriteAllText(tempFile, String.Join(Environment.NewLine, scriptContent));
+System.Console.WriteLine("Writing " + tempFile);
 
-var executable = Path.Combine(
-    Environment.CurrentDirectory, 
-    Environment.CommandLine.Substring(0, Environment.CommandLine.IndexOf(" ")));
+// var executable = Path.Combine(
+//     Environment.CurrentDirectory, 
+//     Environment.CommandLine.Substring(0, Environment.CommandLine.IndexOf(" ")));
 
-Console.WriteLine("executable " + executable);
-Console.WriteLine("tempFile " + tempFile);
-Console.WriteLine("-");
-Console.WriteLine(String.Join(Environment.NewLine, scriptContent));
-var psi = new ProcessStartInfo("cmd", "/c" + executable + " " + tempFile);
-var subProcess = Process.Start(psi);
+// Console.WriteLine("executable " + executable);
+// Console.WriteLine("tempFile " + tempFile);
+// Console.WriteLine("-");
+// Console.WriteLine(String.Join(Environment.NewLine, scriptContent));
+// var psi = new ProcessStartInfo("cmd", "/c" + executable + " " + tempFile);
+// var subProcess = Process.Start(psi);
